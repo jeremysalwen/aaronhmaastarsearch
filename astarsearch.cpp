@@ -2,132 +2,151 @@
 
 using namespace std;
 
-typedef long long ll;
-typedef vector<int> vi;
-typedef vector<bool> vb;
-typedef vector<ll> vll;
-typedef vector<char> vc;
-typedef vector<vi> vvi;
-typedef pair<int, int> pii;
-typedef vector<pii> vpii;
+// 8-sided direction vector (with Euclidean distances)
+// const int dx[8] = {1, 1, 0, -1, -1, -1, 0, 1}, dy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
 
-#define f first
-#define s second
-#define sz(x) (int)x.size()
+// 4-sided direction vector (with Manhattan distances)
+const int dx[4] = {1, 0, -1, 0}, dy[4] = {0, 1, 0, -1};
 
-// 8-sided direction vector
-const int dx[8] = {1, 1, 0, -1, -1, -1, 0, 1}, dy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+struct Point
+{
+  int x, y, parent_x = -1, parent_y = -1;
+  bool visited = false;
 
-struct Cell {
-  int parent_i = -1, parent_j = -1; // Parent of current cell
   // g = movement cost from starting cell to current cell
   // h = estimated movement remaining
   // f = g + h
-  double f = DBL_MAX, g = DBL_MAX, h = DBL_MAX;
-};
+  double f = DBL_MAX, g = DBL_MAX;
 
-// Calculate the heuristic using the distance formula (see https://www.google.com/search?q=distance+formula)
-double calculateHValue(int &new_x, int &new_y, pii &dest) {
-  return ((double)sqrt(
-      (new_x - dest.first) * (new_x - dest.first) + (new_y - dest.second) * (new_y - dest.second)));
-}
+  Point() {}
+  Point(int X, int Y) : x(X), y(Y) {}
 
-void tracePath(vector<vector<Cell>> &cellDetails, pii &dest) {
-  int x = dest.first, y = dest.second;
-
-  stack<pii> path;
-
-  while (!(cellDetails[x][y].parent_i == x && cellDetails[x][y].parent_j == y)) {
-    path.push({x, y});
-    int tmp_x = x;
-    x = cellDetails[x][y].parent_i;
-    y = cellDetails[tmp_x][y].parent_j;
+  bool isValid(int &n, int &m)
+  {
+    return x >= 0 && x < n && y >= 0 && y < m;
   }
 
-  path.push({x, y});
+  bool operator==(const Point &other)
+  {
+    return x == other.x && y == other.y;
+  }
 
-  while (!path.empty()) {
-    pii p = path.top();
-    path.pop();
-    cout << "-> (" << p.f << ", " << p.s << ") ";
+  void update(int px, int py)
+  {
+    parent_x = px, parent_y = py;
+  }
+
+  void update(int px, int py, double nf, double ng)
+  {
+    parent_x = px, parent_y = py, f = nf, g = ng;
+  }
+};
+
+// Calculate the heuristic using the Euclidean Distance formula (see https://wikipedia.org/wiki/Euclidean_distance#Two_dimensions)
+double calculateHValue(int &new_x, int &new_y, Point &dest)
+{
+  // calculating Euclidean distance - diagonal allowed
+  // return sqrt((new_x - dest.x) * (new_x - dest.x) + (new_y - dest.y) * (new_y - dest.y));
+  // calculating Manhattan distance - NO diagonal
+  return abs(new_x - dest.x) + abs(new_y - dest.y);
+}
+
+void tracePath(vector<vector<Point>> &points, Point &dest)
+{
+  int x = dest.x, y = dest.y;
+
+  vector<Point> path;
+
+  while (!(points[x][y].parent_x == x && points[x][y].parent_y == y))
+  {
+    path.push_back({x, y});
+    int tmp_x = x;
+    x = points[x][y].parent_x;
+    y = points[tmp_x][y].parent_y;
+  }
+
+  path.push_back({x, y});
+
+  reverse(path.begin(), path.end());
+
+  for (Point p : path)
+  {
+    cout << "-> (" << p.x << ", " << p.y << ") ";
   }
 
   cout << "\n";
 }
 
 // NOTE: Use `double` instead of `float` for higher precision
-void aStarSearch(vvi &arr, pii &start, pii &end, int n, int m) {
+void aStarSearch(vector<vector<int>> &arr, Point &start, Point &end, int n, int m)
+{
   // Base case 1: If the starting and ending vertices isn't valid, return
-  if (!(start.f >= 0 && start.s >= 0 && end.f >= 0 && end.s >= 0 && start.f < n && start.s < m && end.f < n && end.s < m && arr[start.f][start.s] && arr[end.f][end.s])) {
+  if (!(start.isValid(n, m) && end.isValid(n, m) && arr[start.x][start.y] && arr[end.x][end.y]))
+  {
     cout << "No path exists.\n";
     return;
   }
 
   // Base case 2: If the starting and ending vertices is the same, return
-  if (start == end) {
-    cout << "Path exists.\n(" << start.f << ", " << start.s << ")\n";
+  if (start == end)
+  {
+    cout << "Path exists.\n(" << start.x << ", " << start.y << ")\n";
     return;
   }
 
-  vector<vector<bool>> visited(n, vector<bool>(m)); // Visited array
-  vector<vector<Cell>> cellDetails(n, vector<Cell>(m)); // Details of cell (i, j)
+  vector<vector<Point>> points(n, vector<Point>(m)); // Details of cell (i, j)
 
   // Update starting cell value
-  cellDetails[start.f][start.s].f = 0.0;
-  cellDetails[start.f][start.s].g = 0.0;
-  cellDetails[start.f][start.s].h = 0.0;
-  cellDetails[start.f][start.s].parent_i = start.f;
-  cellDetails[start.f][start.s].parent_j = start.s;
+  points[start.x][start.y].update(start.x, start.y, 0.0, 0.0);
 
-  // {f, {i, j}}
-  // f = g + h
-  queue<pair<double, pii>> Q;
-  Q.push({0.0, {start.f, start.s}});
+  queue<Point> Q;
+  Q.push(start);
 
-  while (!Q.empty()) {
+  while (!Q.empty())
+  {
     // Take top node from the queue
-    pair<double, pii> node = Q.front();
+    Point node = Q.front();
     Q.pop();
 
-    int i = node.s.f, j = node.s.s;
-    visited[i][j] = 1; // Mark current node as visited
-
-    double gNew, hNew, fNew; // Variables to store the new g, h, and f value
+    int i = node.x, j = node.y;
+    node.visited = 1; // Mark current node as visited
 
     // Check through neighbors
-    for (int k = 0; k < 8; k++) {
+    for (int k = 0; k < (int)size(dx); k++)
+    {
       // New neighbor index
-      int new_x = i + dx[k], new_y = j + dy[k];
+      Point neighbor(i + dx[k], j + dy[k]);
 
       // Make sure this neighbor is valid
-      if (new_x >= 0 && new_y >= 0 && new_x < n && new_y < m && arr[new_x][new_y]) {
+      if (neighbor.isValid(n, m) && arr[neighbor.x][neighbor.y])
+      {
         // If we've reached the destination, backtrack to re-trace the path and return.
-        if (new_x == end.f && new_y == end.s) {
-          cout << "Path exists.\nThe path from (" << start.f << ", " << start.s << ") to (" << end.f << ", " << end.s << ") is:\n";
-          cellDetails[new_x][new_y].parent_i = i;
-          cellDetails[new_x][new_y].parent_j = j;
-          tracePath(cellDetails, end);
+        if (neighbor.x == end.x && neighbor.y == end.y)
+        {
+          cout << "Path exists.\nThe path from (" << start.x << ", " << start.y << ") to (" << end.x << ", " << end.y << ") is:\n";
+          points[neighbor.x][neighbor.y].update(i, j);
+          tracePath(points, end);
           return;
         }
 
         // If we haven't visited this neighbor, visit it.
-        if (!visited[new_x][new_y]) {
+        if (!neighbor.visited)
+        {
+          // Diagonal + no diagonal case
           double val = (dx[k] != 0 && dy[k] != 0) ? 1.414 : 1.0;
-          gNew = cellDetails[i][j].g + val; // movement cost from starting cell to current cell
-          hNew = calculateHValue(new_x, new_y, end); // estimated movement remaining
-          fNew = gNew + hNew; // f = g + h
+
+          // Variables to store the new g, h, and f value
+          double gNew = points[i][j].g + val;                                // movement cost from starting cell to current cell
+          double fNew = gNew + calculateHValue(neighbor.x, neighbor.y, end); // f = g + h (estimated movement remaining)
 
           // If the new f is less than the previous f, select this cell for further exploration.
-          if (cellDetails[new_x][new_y].f > fNew) {
+          if (points[neighbor.x][neighbor.y].f > fNew)
+          {
             // Add this cell to queue for exploration
-            Q.push({fNew, {new_x, new_y}});
+            Q.push(neighbor);
 
             // Update the details of this cell
-            cellDetails[new_x][new_y].f = fNew;
-            cellDetails[new_x][new_y].g = gNew;
-            cellDetails[new_x][new_y].h = hNew;
-            cellDetails[new_x][new_y].parent_i = i;
-            cellDetails[new_x][new_y].parent_j = j;
+            points[neighbor.x][neighbor.y].update(i, j, fNew, gNew);
           }
         }
       }
@@ -139,18 +158,18 @@ void aStarSearch(vvi &arr, pii &start, pii &end, int n, int m) {
 
 int main()
 {
-  vvi arr{{1, 0, 1, 1, 1, 1, 0, 1, 1, 1},
-          {1, 1, 1, 0, 1, 1, 1, 0, 1, 1},
-          {1, 1, 1, 0, 1, 1, 0, 1, 0, 1},
-          {0, 0, 1, 0, 1, 0, 0, 0, 0, 1},
-          {1, 1, 1, 0, 1, 1, 1, 0, 1, 0},
-          {1, 0, 1, 1, 1, 1, 0, 1, 0, 0},
-          {1, 0, 0, 0, 0, 1, 0, 0, 0, 1},
-          {1, 0, 1, 1, 1, 1, 0, 1, 1, 1},
-          {1, 1, 1, 0, 0, 0, 1, 0, 0, 1}};
+  vector<vector<int>> arr{{1, 0, 1, 1, 1, 1, 0, 1, 1, 1},
+                          {1, 1, 1, 0, 1, 1, 1, 0, 1, 1},
+                          {1, 1, 1, 0, 1, 1, 0, 1, 0, 1},
+                          {0, 0, 1, 0, 1, 0, 0, 0, 0, 1},
+                          {1, 1, 1, 0, 1, 1, 1, 0, 1, 0},
+                          {1, 0, 1, 1, 1, 1, 0, 1, 0, 0},
+                          {1, 0, 0, 0, 0, 1, 0, 0, 0, 1},
+                          {1, 0, 1, 1, 1, 1, 0, 1, 1, 1},
+                          {1, 1, 1, 0, 0, 0, 1, 0, 0, 1}};
 
-  int n = sz(arr), m = sz(arr[0]);
-  pii start {8, 0}, end {0, 0};
+  int n = (int)arr.size(), m = (int)arr[0].size();
+  Point start(8, 0), end(0, 0);
 
   aStarSearch(arr, start, end, n, m);
 
